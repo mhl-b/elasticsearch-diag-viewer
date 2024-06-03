@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"
+          name="viewport">
+    <meta content="ie=edge" http-equiv="X-UA-Compatible">
+    <title>DiagViewer</title>
+    <style>
+
+      body {
+	  font: 10px sans-serif;
+	  position: relative;
+      }
+
+      .board {
+	  position: absolute;
+	  top: 50px;
+      }
+
+      .node {
+	  box-sizing: border-box;
+	  position: absolute;
+	  overflow: hidden;
+	  text-overflow: clip;
+	  overflow: hidden;
+	  white-space: nowrap;
+      }
+
+      .node-label {
+	  padding: 4px;
+	  line-height: 1em;
+	  white-space: pre;
+      }
+
+      .node-value {
+	  color: rgba(0,0,0,0.8);
+	  font-size: 9px;
+	  margin-top: 1px;
+      }
+
+
+    </style>
+  </head>
+  <body>
+    <div id="bundles" style="width: max-content; border: solid black 1px; padding: 5px">
+      <button id="load-bundle">load bundle</button>
+    </div>
+  </body>
+</html>
