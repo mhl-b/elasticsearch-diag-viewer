@@ -1,6 +1,6 @@
 import * as d3 from "d3";
 import { HierarchyNode } from "d3";
-import { displayDiskSize } from "./disk";
+import { displayDiskSize, parseDiskSize } from "./disk";
 
 type Cluster = {
 	type: 'cluster',
@@ -17,6 +17,7 @@ type Shard = {
 	name: string,
 	index: string,
 	shard: string,
+	node: string,
 	diskSize: number,
 }
 type ClusterTreeNode = Cluster | ClusterNode | Shard;
@@ -49,7 +50,7 @@ function sortFunc(an: HierarchyNode<ClusterTreeNode>, bn: HierarchyNode<ClusterT
 	return 0;
 }
 
-function buildModel(clusterName: string, shards: any): Cluster {
+function buildModel(clusterName: string, shards: any, allocDump: any): Cluster {
 	const nodesMap = new Map<string, ClusterNode>();
 	for (let shard of shards) {
 		let node = nodesMap.get(shard.node);
@@ -66,9 +67,28 @@ function buildModel(clusterName: string, shards: any): Cluster {
 			name: shardId,
 			index: shard.index,
 			shard: shard.shard,
+			node: shard.node,
 			diskSize: shard.stats.store.total_data_set_size_in_bytes,
 		});
 		nodesMap.set(node.name, node);
+	}
+	for (let allocNode of allocDump) {
+		let node = nodesMap.get(allocNode.node);
+		if (node === undefined) {
+			node = {
+				type: 'node',
+				name: allocNode.node,
+				shards: new Map(),
+			};
+		}
+		node.shards.set('', {
+			type: 'shard',
+			name: "free",
+			index: "FREE",
+			shard: "",
+			node: allocNode.node,
+			diskSize: parseDiskSize(allocNode['disk.avail']),
+		});
 	}
 	return {
 		type: 'cluster',
@@ -77,19 +97,19 @@ function buildModel(clusterName: string, shards: any): Cluster {
 	};
 }
 
-export async function drawAlloc(clusterName: string, shards: any) {
-	const view = buildModel(clusterName, shards);
+export async function drawAlloc(clusterName: string, shards: any, allocDump: any) {
+	const view = buildModel(clusterName, shards, allocDump);
 	const root = d3.hierarchy(view, childrenFunc)
 		.sum(sumFunc)
 		.sort(sortFunc);
 
-	const width = 1400;
-	const height = 700;
+	const width = 1800;
+	const height = 800;
 
 	const treemap = d3.treemap<ClusterTreeNode>()
 		.size([width, height])
 		.tile(d3.treemapSquarify)
-		.padding(4);
+		.padding(2);
 	const tree = treemap(root);
 
 	const color = d3.scaleOrdinal(tree.children!.map(d => d.name), d3.schemeTableau10);
@@ -98,18 +118,25 @@ export async function drawAlloc(clusterName: string, shards: any) {
 	d3.select("body")
 		.append("div")
 		.attr("class", "board")
-		.selectAll(".node")
+		.selectAll(".shard")
 		.data(tree.leaves())
 		.enter().append("div")
-		.attr("class", "node")
+		.attr("class", "shard")
 		.attr("title", function(d) { return d.id + "\n" + format(d.value!); })
 		.style("left", function(d) { return d.x0 + "px"; })
 		.style("top", function(d) { return d.y0 + "px"; })
 		.style("width", function(d) { return d.x1 - d.x0 + "px"; })
 		.style("height", function(d) { return d.y1 - d.y0 + "px"; })
-		.style("background", d => color(d.data.name))
+		.style("background", d => {
+			let shard = d.data as Shard;
+			let col =  color(shard.node);
+			if (shard.index == 'FREE') {
+				col = `#${lightenColor(col.substring(1), 20)}`;
+			}
+			return col;
+		})
 		.append("div")
-		.attr("class", "node-label")
+		.attr("class", "shard-label")
 		.text(d => {
 			let shard = d.data;
 			if (shard.type == 'shard') {
@@ -119,7 +146,7 @@ export async function drawAlloc(clusterName: string, shards: any) {
 			}
 		})
 		.append("div")
-		.attr("class", "node-value")
+		.attr("class", "shard-value")
 		.text(d => {
 			let shard = d.data;
 			if (shard.type == 'shard') {
@@ -130,3 +157,13 @@ export async function drawAlloc(clusterName: string, shards: any) {
 		});
 
 }
+
+function lightenColor(color: string, percent: number) {
+  	var num = parseInt(color,16),
+		amt = Math.round(2.55 * percent),
+		R = (num >> 16) + amt,
+		B = (num >> 8 & 0x00FF) + amt,
+		G = (num & 0x0000FF) + amt;
+
+		return (0x1000000 + (R<255?R<1?0:R:255)*0x10000 + (B<255?B<1?0:B:255)*0x100 + (G<255?G<1?0:G:255)).toString(16).slice(1);
+};

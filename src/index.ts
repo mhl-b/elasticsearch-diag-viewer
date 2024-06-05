@@ -64,7 +64,7 @@ async function draw(dir: FileSystemDirectoryHandle) {
   addNodeDiskUsage(nodes, allocationDump);
   addShardDiskUsage(shards, indicesStatsDump, nodesLookup);
 
-  await drawAlloc(nodesDump.cluster_name, shards);
+  await drawAlloc(nodesDump.cluster_name, shards, allocationDump);
 }
 
 // parse json file, filename without json suffix
